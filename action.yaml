@@ -14,6 +14,24 @@ inputs:
   VAULTS:
     description: "The 1password vaults"
     required: true
+  OP_PARAMETERS:
+    description: "The 1password script parameters"
+    required: true
+  OPENSHIFT_LOGIN_REGISTRY:
+    description: "The openshift registry"
+    required: true
+  OPENSHIFT_DOCKER_REGISTRY:
+    description: "The openshift docker registry"
+    required: true
+  OPENSHIFT_SA_NAME:
+    description: "The openshift service account name"
+    required: true
+  OPENSHIFT_SA_TOKEN:
+    description: "The openshift service account token"
+    required: true
+  OPENSHIFT_REPOSITORY:
+    description: "The openshift repository"
+    required: true
 
 runs:
   using: "composite"
@@ -33,18 +51,18 @@ runs:
     - name: Login Openshift
       shell: bash
       run: |
-        oc login ${{ secrets.OPENSHIFT_LOGIN_REGISTRY }} --token=${{ secrets.OPENSHIFT_SA_TOKEN }}
+        oc login ${OPENSHIFT_LOGIN_REGISTRY} --token=${OPENSHIFT_SA_TOKEN}
 
     - name: Set Deployment Environement Variables
       shell: bash
       run: |
-        ${{ github.action_path }}/1pass.sh ${{ secrets.op_parameters }} -m "secret" -e "${TAG_NAME}" -v "${VAULTS}" -a "${IMAGE_NAME}-${TAG_NAME}" -n "${{ secrets.OPENSHIFT_REPOSITORY}}-${TAG_NAME}"
+        ${{ github.action_path }}/1pass.sh ${OP_PARAMETERS} -m "secret" -e "${TAG_NAME}" -v "${VAULTS}" -a "${IMAGE_NAME}-${TAG_NAME}" -n "${OPENSHIFT_REPOSITORY}-${TAG_NAME}"
 
     - name: Push image
       shell: bash
       run: |
-        echo "${{ secrets.OPENSHIFT_SA_TOKEN }}" | docker login ${{ secrets.OPENSHIFT_DOCKER_REGISTRY }} -u ${{ secrets.OPENSHIFT_SA_NAME}} --password-stdin
-        IMAGE_ID=${{ secrets.OPENSHIFT_DOCKER_REGISTRY }}/${{ secrets.OPENSHIFT_REPOSITORY}}-tools/$IMAGE_NAME
+        echo "${OPENSHIFT_SA_TOKEN}" | docker login ${OPENSHIFT_DOCKER_REGISTRY} -u ${OPENSHIFT_SA_NAME} --password-stdin
+        IMAGE_ID=${.OPENSHIFT_DOCKER_REGISTRY}/${OPENSHIFT_REPOSITORY}-tools/$IMAGE_NAME
         docker tag image $IMAGE_ID:latest
         docker push $IMAGE_ID:latest
         docker image tag $IMAGE_ID:latest $IMAGE_ID:$TAG_NAME
@@ -53,4 +71,4 @@ runs:
     - name: Watching new rollout (trigger by image change in Openshift)
       shell: bash
       run: |
-        oc rollout status dc/$IMAGE_NAME-${TAG_NAME} -n ${{ secrets.OPENSHIFT_REPOSITORY}}-${TAG_NAME} -w
+        oc rollout status dc/$IMAGE_NAME-${TAG_NAME} -n ${OPENSHIFT_REPOSITORY}-${TAG_NAME} -w
