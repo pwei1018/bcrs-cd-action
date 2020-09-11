@@ -1,0 +1,56 @@
+name: "BCRS CD action"
+author: "Patrick Wei"
+description: "CD for BCRS projects"
+branding:
+  icon: "check"
+  color: "blue"
+inputs:
+  APP_NAME:
+    description: "The application name"
+    required: true
+  TAG_NAME:
+    description: "Environment TAG name, e.g., dev, test, prod"
+    required: true
+  VAULTS:
+    description: "The 1password vaults"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Build image
+      shell: bash
+      run: |
+        docker build . --file Dockerfile --tag image
+
+    - name: Install tools (1password)
+      shell: bash
+      run: |
+        ${{ github.action_path }}/install_tools.sh
+        oc version
+        op --version
+
+    - name: Login Openshift
+      shell: bash
+      run: |
+        oc login ${{ secrets.OPENSHIFT_LOGIN_REGISTRY }} --token=${{ secrets.OPENSHIFT_SA_TOKEN }}
+
+    - name: Set Deployment Environement Variables
+      shell: bash
+      run: |
+        ${{ github.action_path }}/1pass.sh ${{ secrets.op_parameters }} -m "secret" -e "${TAG_NAME}" -v "${VAULTS}" -a "${IMAGE_NAME}-${TAG_NAME}" -n "${{ secrets.OPENSHIFT_REPOSITORY}}-${TAG_NAME}"
+
+    - name: Push image
+      shell: bash
+      run: |
+        echo "${{ secrets.OPENSHIFT_SA_TOKEN }}" | docker login ${{ secrets.OPENSHIFT_DOCKER_REGISTRY }} -u ${{ secrets.OPENSHIFT_SA_NAME}} --password-stdin
+        IMAGE_ID=${{ secrets.OPENSHIFT_DOCKER_REGISTRY }}/${{ secrets.OPENSHIFT_REPOSITORY}}-tools/$IMAGE_NAME
+        docker tag image $IMAGE_ID:latest
+        docker push $IMAGE_ID:latest
+        docker image tag $IMAGE_ID:latest $IMAGE_ID:$TAG_NAME
+        docker push $IMAGE_ID:$TAG_NAME
+
+    - name: Watching new rollout (trigger by image change in Openshift)
+      shell: bash
+      run: |
+        oc rollout status dc/$IMAGE_NAME-${TAG_NAME} -n ${{ secrets.OPENSHIFT_REPOSITORY}}-${TAG_NAME} -w
