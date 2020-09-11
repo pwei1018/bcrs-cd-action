@@ -11,9 +11,6 @@ inputs:
   APP_NAME:
     description: "The application name"
     required: true
-  TAG_NAME:
-    description: "Environment TAG name, e.g., dev, test, prod"
-    required: true
   VAULTS:
     description: "The 1password vaults"
     required: true
