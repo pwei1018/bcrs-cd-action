@@ -1,9 +1,6 @@
 name: "BCRS CD action"
 author: "Patrick Wei"
 description: "CD for BCRS projects"
-branding:
-  icon: "check"
-  color: "blue"
 inputs:
   WORKING_DIRECTORY:
     description: "The application directory"
@@ -40,13 +37,12 @@ runs:
       shell: bash
       working-directory: ${{inputs.WORKING_DIRECTORY}}
       run: |
-        pwd
         docker build . --file Dockerfile --tag image
 
     - name: Install tools (1password)
       shell: bash
       run: |
-        ${{ github.action_path }}/install_tools.sh
+        ${{ github.action_path }}/scripts/install_tools.sh
         oc version
         op --version
 
@@ -58,7 +54,7 @@ runs:
     - name: Set Deployment Environement Variables
       shell: bash
       run: |
-        ${{ github.action_path }}/1pass.sh ${{inputs.OP_PARAMETERS}} -m "secret" -e "${TAG_NAME}" -v "${VAULTS}" -a "${IMAGE_NAME}-${TAG_NAME}" -n "${{inputs.OPENSHIFT_REPOSITORY}}-${TAG_NAME}"
+        ${{ github.action_path }}/scripts/1pass.sh ${{inputs.OP_PARAMETERS}} -m "secret" -e "${TAG_NAME}" -v "${VAULTS}" -a "${IMAGE_NAME}-${TAG_NAME}" -n "${{inputs.OPENSHIFT_REPOSITORY}}-${TAG_NAME}"
 
     - name: Push image
       shell: bash
@@ -70,7 +66,7 @@ runs:
         docker image tag $IMAGE_ID:latest $IMAGE_ID:$TAG_NAME
         docker push $IMAGE_ID:$TAG_NAME
 
-    - name: Watching new rollout (trigger by image change in Openshift)
+    - name: Watch new rollout (trigger by image change in Openshift)
       shell: bash
       run: |
         oc rollout status dc/$IMAGE_NAME-${TAG_NAME} -n ${{inputs.OPENSHIFT_REPOSITORY}}-${TAG_NAME} -w
