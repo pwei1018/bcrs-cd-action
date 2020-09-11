@@ -5,6 +5,9 @@ branding:
   icon: "check"
   color: "blue"
 inputs:
+  WORKING_DIRECTORY:
+    description: "The application directory"
+    required: true
   APP_NAME:
     description: "The application name"
     required: true
@@ -38,6 +41,7 @@ runs:
   steps:
     - name: Build image
       shell: bash
+      working-directory: ${WORKING_DIRECTORY}
       run: |
         docker build . --file Dockerfile --tag image
 
