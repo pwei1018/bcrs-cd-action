@@ -22,7 +22,7 @@ runs:
       shell: bash
       run: |
         pwd
-        ${WORKING_DIRECTORY}/docker build . --file Dockerfile --tag image
+        docker build ${WORKING_DIRECTORY}/ --file Dockerfile --tag image
 
     - name: Install tools (1password)
       shell: bash
