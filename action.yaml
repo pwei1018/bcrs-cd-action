@@ -43,6 +43,7 @@ runs:
       shell: bash
       working-directory: ${WORKING_DIRECTORY}
       run: |
+        pwd
         docker build . --file Dockerfile --tag image
 
     - name: Install tools (1password)
