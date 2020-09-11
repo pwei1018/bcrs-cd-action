@@ -15,6 +15,7 @@ usage() {
                       -v <vaultDetails>
                       -a <appName>
                       -n <namespace>
+                      -s <skip>
 
   OPTIONS:
   ========
@@ -30,6 +31,7 @@ usage() {
     -e The environment(s) of the vault, for example pytest/dev/test/prod or "dev test".
     -a Openshift application name, for example: auth-api-dev
     -n Openshift namespace name, for example: 1rdehl-dev
+    -s Skip this script, for exmaple: true t TRUE T True 1
     -v A list of vault and application name of the 1password account, for example:
        [
           {
@@ -56,7 +58,7 @@ exit
 # -----------------------------------------------------------------------------------------------------------------
 # Initialization:
 # -----------------------------------------------------------------------------------------------------------------
-while getopts h:a:d:u:k:p:v:m:e:n: FLAG; do
+while getopts h:a:d:u:k:p:v:m:e:n:s: FLAG; do
   case $FLAG in
     h ) usage ;;
     a ) APP_NAME=$OPTARG ;;
@@ -68,6 +70,7 @@ while getopts h:a:d:u:k:p:v:m:e:n: FLAG; do
     m ) METHOD=$OPTARG ;;
     e ) ENVIRONMENT=$OPTARG ;;
     n ) NAMESPACE=$OPTARG ;;
+    s ) SKIP=$OPTARG ;;
     \? ) #unrecognized option - show help
       echo -e \\n"Invalid script option: -${OPTARG}"\\n
       usage
@@ -76,8 +79,15 @@ while getopts h:a:d:u:k:p:v:m:e:n: FLAG; do
 done
 
 # Shift the parameters in case there any more to be used
+
 shift $((OPTIND-1))
 # echo Remaining arguments: $@
+
+skip_true=(true t TRUE T True 1)
+if [[ " ${skip_true[@]} " =~ " ${SKIP} " ]]; then
+  echo -e "Skip"
+  exit
+fi
 
 if [ -z "${DOMAIN_NAME}" ]; then
   DOMAIN_NAME=registries.1password.ca
