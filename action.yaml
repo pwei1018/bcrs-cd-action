@@ -20,10 +20,9 @@ runs:
   steps:
     - name: Build image
       shell: bash
-      working-directory: ${WORKING_DIRECTORY}
       run: |
         pwd
-        docker build . --file Dockerfile --tag image
+        ${WORKING_DIRECTORY}/docker build . --file Dockerfile --tag image
 
     - name: Install tools (1password)
       shell: bash
