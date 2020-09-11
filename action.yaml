@@ -5,7 +5,7 @@ branding:
   icon: "check"
   color: "blue"
 inputs:
-  WORKING_DIRECTORY:
+  APP_DIRECTORY:
     description: "The application directory"
     required: true
   APP_NAME:
@@ -22,7 +22,7 @@ runs:
       shell: bash
       run: |
         pwd
-        docker build ${WORKING_DIRECTORY}/ --file Dockerfile --tag image
+        docker build ${APP_DIRECTORY} --file Dockerfile --tag image
 
     - name: Install tools (1password)
       shell: bash
