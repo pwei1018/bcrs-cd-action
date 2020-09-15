@@ -176,7 +176,7 @@ for env_name in "${envs[@]}"; do
 
           case  ${METHOD}  in
             secret)
-              secret_json=$(oc create secret generic ${APP_NAME}-secret --from-literal="$(_envvars '.t')=$(_envvars '.v')" --dry-run -o json)
+              secret_json=$(oc create secret generic ${APP_NAME}-secret --from-literal="$(_envvars '.t')=$(_envvars '.v')" --dry-run=client -o json)
 
               # Set secret key and value from 1password
               oc get secret ${APP_NAME}-secret -n ${NAMESPACE} -o json \
