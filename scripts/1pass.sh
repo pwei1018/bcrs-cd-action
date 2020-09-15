@@ -155,7 +155,7 @@ num=0
 for env_name in "${envs[@]}"; do
 
   num=$((num+1))
-  echo $(echo "${VAULT}" | jq -r '.[] | @base64' );
+  echo "${VAULT}" 
 done
 
 echo "step 2"
