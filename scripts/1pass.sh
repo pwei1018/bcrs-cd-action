@@ -138,4 +138,4 @@ if [[ " secret " =~ " ${METHOD} " ]]; then
   fi
 fi
 
-
+echo ${VAULT}
