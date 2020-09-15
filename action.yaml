@@ -58,7 +58,7 @@ runs:
     - name: Set Deployment Environement Variables
       shell: bash
       run: |
-        ${{ github.action_path }}/scripts/1pass.sh ${{inputs.OP_PARAMETERS}} -s "${SKIP_OP}" -m "secret" -e "${TAG_NAME}" -v "${VAULTS}" -a "${IMAGE_NAME}-${TAG_NAME}" -n "${{inputs.OPENSHIFT_REPOSITORY}}-${TAG_NAME}"
+        ${{ github.action_path }}/scripts/1pass.sh ${{inputs.OP_PARAMETERS}} -s "${inputs.SKIP_OP}" -m "secret" -e "${TAG_NAME}" -v "${inputs.VAULTS}" -a "${IMAGE_NAME}-${TAG_NAME}" -n "${{inputs.OPENSHIFT_REPOSITORY}}-${TAG_NAME}"
 
     - name: Push image
       shell: bash
