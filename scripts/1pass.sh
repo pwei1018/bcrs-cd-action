@@ -155,10 +155,7 @@ num=0
 for env_name in "${envs[@]}"; do
 
   num=$((num+1))
-  for vault_name in $(echo "${VAULT}" | jq -r '.[] | @base64' ); do
-    echo ${vault_name} | base64 --decode 
-    
-  done
+
 done
 
 echo "step 2"
