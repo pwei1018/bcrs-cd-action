@@ -58,13 +58,14 @@ runs:
     - name: Set Deployment Environement Variables
       shell: bash
       run: |
-        ${{ github.action_path }}/scripts/1pass.sh ${{inputs.OP_PARAMETERS}} -s "${inputs.SKIP_OP}" -m "secret" -e "${TAG_NAME}" -v "${inputs.VAULTS}" -a "${IMAGE_NAME}-${TAG_NAME}" -n "${{inputs.OPENSHIFT_REPOSITORY}}-${TAG_NAME}"
+        echo "Update Envs"
+        ${{ github.action_path }}/scripts/1pass.sh ${{inputs.OP_PARAMETERS}} -s "${{inputs.SKIP_OP}}" -m "secret" -e "${TAG_NAME}" -v "${{inputs.VAULTS}}" -a "${{inputs.APP_NAME}}-${TAG_NAME}" -n "${{inputs.OPENSHIFT_REPOSITORY}}-${TAG_NAME}"
 
     - name: Push image
       shell: bash
       run: |
         echo "${{inputs.OPENSHIFT_SA_TOKEN}}" | docker login ${{inputs.OPENSHIFT_DOCKER_REGISTRY}} -u ${{inputs.OPENSHIFT_SA_NAME}} --password-stdin
-        IMAGE_ID=${{inputs.OPENSHIFT_DOCKER_REGISTRY}}/${{inputs.OPENSHIFT_REPOSITORY}}-tools/$IMAGE_NAME
+        IMAGE_ID=${{inputs.OPENSHIFT_DOCKER_REGISTRY}}/${{inputs.OPENSHIFT_REPOSITORY}}-tools/${{inputs.APP_NAME}}
         docker tag image $IMAGE_ID:latest
         docker push $IMAGE_ID:latest
         docker image tag $IMAGE_ID:latest $IMAGE_ID:$TAG_NAME
@@ -73,4 +74,4 @@ runs:
     - name: Watch new rollout (trigger by image change in Openshift)
       shell: bash
       run: |
-        oc rollout status dc/$IMAGE_NAME-${TAG_NAME} -n ${{inputs.OPENSHIFT_REPOSITORY}}-${TAG_NAME} -w
+        oc rollout status dc/${{inputs.APP_NAME}}-${TAG_NAME} -n ${{inputs.OPENSHIFT_REPOSITORY}}-${TAG_NAME} -w
