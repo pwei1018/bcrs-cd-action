@@ -149,11 +149,13 @@ if [[ " secret " =~ " ${METHOD} " ]]; then
   oc create secret generic ${APP_NAME}-secret -n ${NAMESPACE} > /dev/null 2>&1 &
 fi
 
+echo "step 1"
+
 num=0
 for env_name in "${envs[@]}"; do
 
   num=$((num+1))
-  for vault_name in $(echo ${VAULT} | jq -r '.[] | @base64' ); do
+  for vault_name in $(echo "${VAULT}" | jq -r '.[] | @base64' ); do
     _jq() {
       echo ${vault_name} | base64 --decode | jq -r ${1}
     }
@@ -198,6 +200,8 @@ for env_name in "${envs[@]}"; do
     done
   done
 done
+
+echo "step 2"
 
 case  ${METHOD}  in
   secret)
