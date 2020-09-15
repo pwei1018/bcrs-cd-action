@@ -155,34 +155,8 @@ num=0
 for env_name in "${envs[@]}"; do
 
   num=$((num+1))
-
+  echo $(echo "${VAULT}" | jq -r '.[] | @base64' );
 done
 
 echo "step 2"
-
-case  ${METHOD}  in
-  secret)
-    # Set environment variable of deployment config
-    oc set env dc/${APP_NAME} -n ${NAMESPACE} --overwrite --from=secret/${APP_NAME}-secret --containers=${APP_NAME} ENV-  > /dev/null 2>&1 &
-    ;;
-  compare)
-    # Compare txt file and write the result into github actions environment
-    result=$(comm -23 <(sort t1.txt) <(sort t2.txt))
-    result2=$(comm -23 <(sort t2.txt) <(sort t1.txt))
-    if [[ -z ${result} ]]; then
-      if [[ -z ${result2} ]]; then
-        echo ::set-env name=approval::true
-        echo ::set-env name=message::The vault items between ${envs[0]} and ${envs[1]}  are matched.
-      else
-        echo ::set-env name=approval::false
-        echo ::set-env name=message::The following vault items between ${envs[1]} and ${envs[0]} does not match. ${result2}
-      fi
-    else
-      echo ::set-env name=approval::false
-      echo ::set-env name=message::The following vault items between ${envs[0]} and ${envs[1]} does not match. ${result}
-    fi
-
-    rm t*.txt
-    ;;
-esac
 
