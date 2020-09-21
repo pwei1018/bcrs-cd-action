@@ -36,7 +36,7 @@ inputs:
   OPENSHIFT_REPOSITORY_DEPLOYMENT:
     description: "The openshift repository from deployment"
     required: false
-    default: ${{inputs.OPENSHIFT_REPOSITORY}}
+    default: "${{inputs.OPENSHIFT_REPOSITORY}}"
 
 runs:
   using: "composite"
