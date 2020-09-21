@@ -33,6 +33,10 @@ inputs:
   OPENSHIFT_REPOSITORY:
     description: "The openshift repository"
     required: true
+  OPENSHIFT_REPOSITORY_DEPLOYMENT:
+    description: "The openshift repository from deployment"
+    required: false
+    default: ${{inputs.OPENSHIFT_REPOSITORY}}
 
 runs:
   using: "composite"
@@ -74,4 +78,4 @@ runs:
     - name: Watch new rollout (trigger by image change in Openshift)
       shell: bash
       run: |
-        oc rollout status dc/${{inputs.APP_NAME}}-${TAG_NAME} -n ${{inputs.OPENSHIFT_REPOSITORY}}-${TAG_NAME} -w
+        oc rollout status dc/${{inputs.APP_NAME}}-${TAG_NAME} -n ${{inputs.OPENSHIFT_REPOSITORY_DEPLOYMENT}}-${TAG_NAME} -w
