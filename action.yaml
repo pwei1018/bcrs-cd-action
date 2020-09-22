@@ -33,9 +33,6 @@ inputs:
   OPENSHIFT_REPOSITORY:
     description: "The openshift repository"
     required: true
-  OPENSHIFT_REPOSITORY_DEPLOYMENT:
-    description: "The openshift repository from deployment"
-    required: true
 
 runs:
   using: "composite"
@@ -73,8 +70,3 @@ runs:
         docker push $IMAGE_ID:latest
         docker image tag $IMAGE_ID:latest $IMAGE_ID:$TAG_NAME
         docker push $IMAGE_ID:$TAG_NAME
-
-    - name: Watch new rollout (trigger by image change in Openshift)
-      shell: bash
-      run: |
-        oc rollout status dc/${{inputs.APP_NAME}}-${TAG_NAME} -n ${{inputs.OPENSHIFT_REPOSITORY_DEPLOYMENT}}-${TAG_NAME} -w
