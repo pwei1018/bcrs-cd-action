@@ -58,7 +58,7 @@ exit
 # -----------------------------------------------------------------------------------------------------------------
 # Initialization:
 # -----------------------------------------------------------------------------------------------------------------
-while getopts h:a:d:u:k:p:v:m:e:n:s: FLAG; do
+while getopts h:a:d:u:k:p:v:m:e:n:s:r: FLAG; do
   case $FLAG in
     h ) usage ;;
     a ) APP_NAME=$OPTARG ;;
@@ -71,6 +71,7 @@ while getopts h:a:d:u:k:p:v:m:e:n:s: FLAG; do
     e ) ENVIRONMENT=$OPTARG ;;
     n ) NAMESPACE=$OPTARG ;;
     s ) SKIP=$OPTARG ;;
+    r ) DEPLOYMENT=$OPTARG ;;
     \? ) #unrecognized option - show help
       echo -e \\n"Invalid script option: -${OPTARG}"\\n
       usage
@@ -87,6 +88,13 @@ skip_true=(true t TRUE T True 1)
 if [[ " ${skip_true[@]} " =~ " ${SKIP} " ]]; then
   echo -e "Skip"
   exit
+fi
+
+deployment_true=(true t TRUE T True 1)
+if [[ " ${deployment_true[@]} " =~ " ${DEPLOYMENT} " ]]; then
+  DEPLOYMENT=true
+else
+  DEPLOYMENT=false
 fi
 
 if [ -z "${DOMAIN_NAME}" ]; then
@@ -119,12 +127,17 @@ if [[ ! " ${methods[@]} " =~ " ${METHOD} " ]]; then
 fi
 
 envs=(${ENVIRONMENT})
-if [[ " compare " =~ " ${METHOD} " ]]; then
-  if [[ ${#envs[@]} != 2 ]]; then
-    echo -e \\n"Environments must be contain two values ('dev test' or 'test prod')."\\n
-    exit
-  fi
-fi
+case  ${ENVIRONMENT}  in
+  dev)
+    envs=('dev')
+    ;;
+  test)
+    envs=('dev' 'test')
+    ;;
+  prod)
+    envs=('test' 'prod')
+    ;;
+esac
 
 if [[ " secret " =~ " ${METHOD} " ]]; then
   if [[ -z "${APP_NAME}" ]]; then
@@ -138,16 +151,10 @@ if [[ " secret " =~ " ${METHOD} " ]]; then
   fi
 fi
 
-
 # Login to 1Password../s
 # Assumes you have installed the OP CLI and performed the initial configuration
 # For more details see https://support.1password.com/command-line-getting-started/
 eval $(echo "${MASTER_PASSWORD}" | op signin ${DOMAIN_NAME} ${USERNAME} ${SECRET_KEY})
-
-if [[ " secret " =~ " ${METHOD} " ]]; then
-  # create application secrets
-  oc create secret generic ${APP_NAME}-secret -n ${NAMESPACE} > /dev/null 2>&1 &
-fi
 
 num=0
 for env_name in "${envs[@]}"; do
@@ -166,34 +173,29 @@ for env_name in "${envs[@]}"; do
       # single section. The label is the key, and the value is the value.
       ev=`op get item --vault=$(_jq .vault) ${env_name}`
 
+      touch t$num.txt
+
       # Convert to base64 for multi-line secrets.
       # The schema for the 1Password type uses t as the label, and v as the value.
-      # Set secrets to secret in Openshift
       for row in $(echo ${ev} | jq -r -c '.details.sections[] | select(.title=='\"$(_jq_app)\"') | .fields[] | @base64'); do
           _envvars() {
               echo ${row} | base64 --decode | jq -r ${1}
           }
 
-          case  ${METHOD}  in
-            secret)
-              secret_json=$(oc create secret generic ${APP_NAME}-secret --from-literal="$(_envvars '.t')=$(_envvars '.v')" --dry-run=client -o json)
+          echo "${app_name}: $(_envvars '.t')" >> t$num.txt
 
-              # Set secret key and value from 1password
-              oc get secret ${APP_NAME}-secret -n ${NAMESPACE} -o json \
-                | jq ". * $secret_json" \
-                | oc apply -f -
-              ;;
-            env)
-              echo "Setting environment variable $(_envvars '.t')"
-              echo ::add-mask::$(_envvars '.v')
-              echo ::echo "$(_envvars '.t')=$(_envvars '.v')" >> $GITHUB_ENV
-              ;;
-            compare)
-              #read the vault's key to a txt file
-
-              echo "${app_name}: $(_envvars '.t')" >> t$num.txt
-              ;;
-          esac
+          if [[ ${env_name} == ${ENVIRONMENT} ]]; then
+            case  ${METHOD}  in
+              secret)
+                echo "$(_envvars '.t')=$(_envvars '.v')" >> tsecret.txt
+                ;;
+              env)
+                echo "Setting environment variable $(_envvars '.t')"
+                echo ::add-mask::$(_envvars '.v')
+                echo ::echo "$(_envvars '.t')=$(_envvars '.v')" >> $GITHUB_ENV
+                ;;
+            esac
+          fi
       done
     done
   done
@@ -201,8 +203,71 @@ done
 
 case  ${METHOD}  in
   secret)
-    # Set environment variable of deployment config
-    oc set env dc/${APP_NAME} -n ${NAMESPACE} --overwrite --from=secret/${APP_NAME}-secret --containers=${APP_NAME} ENV-  > /dev/null 2>&1 &
+    matched=true
+
+    env_true=(test prod)
+    if [[ " ${env_true[@]} " =~ " ${ENVIRONMENT} " ]]; then
+      # Compare txt file and write the result into github actions environment
+      result=$(comm -23 <(sort t1.txt) <(sort t2.txt))
+      result2=$(comm -23 <(sort t2.txt) <(sort t1.txt))
+
+      if [[ ! -z ${result} || ! -z ${result2} ]]; then
+        matched=false
+        echo ::echo "message=The following vault items between ${envs[0]} and ${envs[1]} does not match. ${result}"  >> $GITHUB_ENV
+      fi
+    fi
+
+    if [[ $matched = true ]]; then
+      count_secrets=$(oc get secret ${APP_NAME}-secret -n ${NAMESPACE} --no-headers --ignore-not-found | wc -l)
+      if [[ $count_secrets > 0 ]]; then
+        # backup current secrets
+        commit_label=$(oc get secret ${APP_NAME}-secret -n ${NAMESPACE} --label-columns=git-commit --no-headers | awk '{ print $5 " " $6}')
+        if [[ ! -z "${commit_label}" ]]; then
+          # delete duplicate secret
+          oc delete secret ${APP_NAME}-secret-${commit_label} -n ${NAMESPACE}
+          # copy existing secret
+          oc get secret ${APP_NAME}-secret -n ${NAMESPACE} -o yaml|sed "s/name: ${APP_NAME}-secret/name: ${APP_NAME}-secret-${commit_label}/g" | oc apply -f -
+        fi
+
+        oc delete secret ${APP_NAME}-secret -n ${NAMESPACE}
+      fi
+
+      # create application secrets and set label
+      oc create secret generic ${APP_NAME}-secret -n ${NAMESPACE}
+      oc label secret ${APP_NAME}-secret -n ${NAMESPACE} app=${APP_NAME} git-commit=$(git rev-parse --short HEAD)
+
+      count_secrets=$(oc get secrets --selector=app=${APP_NAME} -n ${NAMESPACE} --no-headers --ignore-not-found | wc -l)
+      # keep 3 backup secrets
+      if [[ $count_secrets > 4 ]]; then
+        oldest_secret=($(oc get secrets -n ${NAMESPACE} --selector=app=${APP_NAME} --sort-by=.metadata.creationTimestamp --no-headers -o custom-columns=NAME:.metadata.name))
+        oc delete secret ${oldest_secret} -n ${NAMESPACE}
+      fi
+
+      for var in $(cat tsecret.txt); do
+        if [[ ! ${var:0:1} = "#" ]]; then
+          k=${var%=*}
+          v=${var#*=}
+          if [[ ! -z "$k" ]];	then
+            secret_json=$(oc create secret generic ${APP_NAME}-secret -n ${NAMESPACE} --from-literal=${k}=${v} --dry-run=true -o json)
+            # Set secret key and value from 1password
+            oc get secret ${APP_NAME}-secret -n ${NAMESPACE} -o json \
+              | jq ". * $secret_json" \
+              | oc apply -f -
+          fi
+        fi
+      done
+
+      if [[ ${DEPLOYMENT} = true ]]; then
+        # Set environment variable of deployment config
+        oc set env dc/${APP_NAME} -n ${NAMESPACE} --overwrite --from=secret/${APP_NAME}-secret --containers=${APP_NAME} ENV-  > /dev/null 2>&1 &
+      fi
+
+      rm t*.txt
+    else
+      rm t*.txt
+      exit 1
+    fi
+
     ;;
   compare)
     # Compare txt file and write the result into github actions environment
