@@ -15,6 +15,10 @@ inputs:
     description: "Skip running 1password script"
     required: true
     default: "false"
+  DEPLOYMENT:
+    description: "Deployment"
+    required: false
+    default: "true"
   OP_PARAMETERS:
     description: "The 1password script parameters"
     required: true
@@ -58,11 +62,17 @@ runs:
       run: |
         oc login ${{inputs.OPENSHIFT_LOGIN_REGISTRY}} --token=${{inputs.OPENSHIFT_SA_TOKEN}}
 
+    - name: Compare Environement Variables
+      shell: bash
+      run: |
+        echo "Compare Envs"
+        ${{ github.action_path }}/scripts/1pass.sh ${{inputs.OP_PARAMETERS}} -e "${TAG_NAME}" -v "${{inputs.VAULTS}}"
+
     - name: Set Deployment Environement Variables
       shell: bash
       run: |
         echo "Update Envs"
-        ${{ github.action_path }}/scripts/1pass.sh ${{inputs.OP_PARAMETERS}} -s "${{inputs.SKIP_OP}}" -m "secret" -e "${TAG_NAME}" -v "${{inputs.VAULTS}}" -a "${{inputs.APP_NAME}}-${TAG_NAME}" -n "${{inputs.OPENSHIFT_REPOSITORY}}-${TAG_NAME}"
+        ${{ github.action_path }}/scripts/1pass.sh ${{inputs.OP_PARAMETERS}} -s "${{inputs.SKIP_OP}}" -m "secret" -e "${TAG_NAME}" -v "${{inputs.VAULTS}}" -a "${{inputs.APP_NAME}}-${TAG_NAME}" -n "${{inputs.OPENSHIFT_REPOSITORY}}-${TAG_NAME}" -r ""${{inputs.DEPLOYMENT}}"
 
     - name: Push image
       shell: bash
