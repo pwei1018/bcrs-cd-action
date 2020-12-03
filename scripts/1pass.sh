@@ -213,14 +213,14 @@ case  ${METHOD}  in
 
       if [[ ! -z ${result} || ! -z ${result2} ]]; then
         matched=false
-        echo ::echo "vaults_not_matched=The following vault items between ${envs[0]} and ${envs[1]} does not match. ${result}"  >> $GITHUB_ENV
+        echo ::error "vaults_not_matched=The following vault items between ${envs[0]} and ${envs[1]} does not match. ${result}"
       fi
     fi
 
     # check the duplicat key from vaults
-    duplicate_key_check=$(sort tsecret.txt | grep -v -P '^\s*#' | sed -E 's/(.*)=.*/\1/' | uniq -d)
+    duplicate_key_check=$(sort tsecret.txt | grep -v -P '^\s*#' | sed -E 's/(.*)=.*/\1/' | uniq -d | xargs)
     if [[ ! -z ${duplicate_key_check} ]]; then
-      echo ::echo "duplicate_vault_key=Duplicate key(s) found in 1password. ${result}"  >> $GITHUB_ENV
+      echo ::warning  "duplicate_vault_key=Duplicate key(s) found in 1password. ${duplicate_key_check}"
       sort tsecret.txt | uniq > tsecret1.txt
       cp tsecret1.txt tsecret.txt
     fi
