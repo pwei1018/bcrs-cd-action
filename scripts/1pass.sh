@@ -205,16 +205,24 @@ case  ${METHOD}  in
   secret)
     matched=true
 
+    # Compare vaults from different environments
     env_true=(test prod)
     if [[ " ${env_true[@]} " =~ " ${ENVIRONMENT} " ]]; then
-      # Compare txt file and write the result into github actions environment
       result=$(comm -23 <(sort t1.txt) <(sort t2.txt))
       result2=$(comm -23 <(sort t2.txt) <(sort t1.txt))
 
       if [[ ! -z ${result} || ! -z ${result2} ]]; then
         matched=false
-        echo ::echo "message=The following vault items between ${envs[0]} and ${envs[1]} does not match. ${result}"  >> $GITHUB_ENV
+        echo ::echo "vaults_not_matched=The following vault items between ${envs[0]} and ${envs[1]} does not match. ${result}"  >> $GITHUB_ENV
       fi
+    fi
+
+    # check the duplicat key from vaults
+    duplicate_key_check=$(sort tsecret.txt | grep -v -P '^\s*#' | sed -E 's/(.*)=.*/\1/' | uniq -d)
+    if [[ ! -z ${duplicate_key_check} ]]; then
+      echo ::echo "duplicate_vault_key=Duplicate key(s) found in 1password. ${result}"  >> $GITHUB_ENV
+      sort tsecret.txt | uniq > tsecret1.txt
+      cp tsecret1.txt tsecret.txt
     fi
 
     if [[ $matched = true ]]; then
@@ -243,19 +251,11 @@ case  ${METHOD}  in
         oc delete secret ${oldest_secret} -n ${NAMESPACE}
       fi
 
-      for var in $(cat tsecret.txt); do
-        if [[ ! ${var:0:1} = "#" ]]; then
-          k=${var%=*}
-          v=${var#*=}
-          if [[ ! -z "$k" ]];	then
-            secret_json=$(oc create secret generic ${APP_NAME}-secret -n ${NAMESPACE} --from-literal=${k}=${v} --dry-run=true -o json)
-            # Set secret key and value from 1password
-            oc get secret ${APP_NAME}-secret -n ${NAMESPACE} -o json \
-              | jq ". * $secret_json" \
-              | oc apply -f -
-          fi
-        fi
-      done
+      secret_json=$(oc create secret generic ${APP_NAME}-secret -n ${NAMESPACE} --from-env-file=./tsecret.txt --dry-run=client -o json)
+      # Set secret key and value from 1password
+      oc get secret ${APP_NAME}-secret -n ${NAMESPACE} -o json \
+        | jq ". * $secret_json" \
+        | oc apply -f -
 
       if [[ ${DEPLOYMENT} = true ]]; then
         # Set environment variable of deployment config
