@@ -62,12 +62,6 @@ runs:
       run: |
         oc login ${{inputs.OPENSHIFT_LOGIN_REGISTRY}} --token=${{inputs.OPENSHIFT_SA_TOKEN}}
 
-    - name: Compare Environement Variables
-      shell: bash
-      run: |
-        echo "Compare Envs"
-        ${{ github.action_path }}/scripts/1pass.sh ${{inputs.OP_PARAMETERS}} -e "${TAG_NAME}" -v "${{inputs.VAULTS}}"
-
     - name: Set Deployment Environement Variables
       shell: bash
       run: |
