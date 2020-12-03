@@ -211,16 +211,24 @@ case  ${METHOD}  in
       result=$(comm -23 <(sort t1.txt) <(sort t2.txt))
       result2=$(comm -23 <(sort t2.txt) <(sort t1.txt))
 
-      if [[ ! -z ${result} || ! -z ${result2} ]]; then
+      if [[ ! -z ${result} ]]; then
         matched=false
-        echo ::echo "vaults_not_matched=The following vault items between ${envs[0]} and ${envs[1]} does not match. ${result}"  >> $GITHUB_ENV
+        error_message="The following vault items between ${envs[0]} and ${envs[1]} does not match. ${result}"
+        echo ::error "::$error_message"
+      else
+        if [[ ! -z ${result2} ]]; then
+          matched=false
+          error_message="The following vault items between ${envs[1]} and ${envs[0]} does not match. ${result2}"
+          echo ::error "::$error_message"
+        fi
       fi
     fi
 
     # check the duplicat key from vaults
-    duplicate_key_check=$(sort tsecret.txt | grep -v -P '^\s*#' | sed -E 's/(.*)=.*/\1/' | uniq -d)
+    duplicate_key_check=$(sort tsecret.txt | grep -v -P '^\s*#' | sed -E 's/(.*)=.*/\1/' | uniq -d | xargs)
     if [[ ! -z ${duplicate_key_check} ]]; then
-      echo ::echo "duplicate_vault_key=Duplicate key(s) found in 1password. ${result}"  >> $GITHUB_ENV
+      warning_message="Duplicate key(s) found in 1password. ${duplicate_key_check}"
+      echo ::warning "::$warning_message"
       sort tsecret.txt | uniq > tsecret1.txt
       cp tsecret1.txt tsecret.txt
     fi
