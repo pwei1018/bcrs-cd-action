@@ -261,15 +261,15 @@ case  ${METHOD}  in
 
       secret_json=$(oc create secret generic ${APP_NAME}-secret -n ${NAMESPACE} --from-env-file=./tsecret.txt --dry-run=client -o json)
       # Set secret key and value from 1password
-      oc get secret ${APP_NAME}-secret -n ${NAMESPACE} -o json | jq ". * $secret_json" | oc apply -f - > /dev/null 2>&1 &
+      oc get secret ${APP_NAME}-secret -n ${NAMESPACE} -o json | jq ". * $secret_json" | oc apply -f -
 
       if [[ ${DEPLOYMENT} = true ]]; then
         # Set environment variable of deployment config
-        for secret_name in $(oc get dc/${APP_NAME} -n ${NAMESPACE} -o json | jq '.spec.template.spec.containers[].env[]? | select(.valueFrom.secretKeyRef.name == '"\"${APP_NAME}-secret"\"') | .name'); do
+        for secret_name in $(oc get dc/${APP_NAME} -n ${NAMESPACE} -o json | jq -r '.spec.template.spec.containers[].env[]? | select(.valueFrom.secretKeyRef.name == '"\"${APP_NAME}-secret"\"') | .name'); do
           # Remove existing environment variables of deployment config
-          oc set env dc/${APP_NAME} -n ${NAMESPACE} --containers=${APP_NAME} ${secret_name}-  > /dev/null 2>&1 &
+          oc set env dc/${APP_NAME} -n ${NAMESPACE} --containers=${APP_NAME} ${secret_name}-
         done
-        oc set env dc/${APP_NAME} -n ${NAMESPACE} --from=secret/${APP_NAME}-secret --containers=${APP_NAME} > /dev/null 2>&1 &
+        oc set env dc/${APP_NAME} -n ${NAMESPACE} --from=secret/${APP_NAME}-secret --containers=${APP_NAME}
       fi
 
       rm t*.txt
