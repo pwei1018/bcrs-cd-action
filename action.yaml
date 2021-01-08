@@ -64,7 +64,7 @@ runs:
       run: |
         echo "Update Envs"
         ls -l
-        vaults=`cat vaults.json`
+        vaults=`cat ./${{inputs.WORKING_DIRECTORY}}/vaults.json`
         ${{ github.action_path }}/scripts/1pass.sh ${{inputs.OP_PARAMETERS}} -s "${{inputs.SKIP_OP}}" -m "secret" -e "${TAG_NAME}" -v "${{inputs.VAULTS}}" -a "${{inputs.APP_NAME}}-${TAG_NAME}" -n "${{inputs.OPENSHIFT_REPOSITORY}}-${TAG_NAME}" -r "${{inputs.DEPLOYMENT}}"
 
     - name: Push image
