@@ -32,24 +32,7 @@ usage() {
     -a Openshift application name, for example: auth-api-dev
     -n Openshift namespace name, for example: 1rdehl-dev
     -s Skip this script, for exmaple: true t TRUE T True 1
-    -v A list of vault and application name of the 1password account, for example:
-       [
-          {
-              "vault": "shared",
-              "application": [
-                  "keycloak",
-                  "email"
-              ]
-          },
-          {
-              "vault": "relationship",
-              "application": [
-                  "auth-api",
-                  "notify-api",
-                  "status-api"
-              ]
-          }
-      ]
+    -r Modify the deployment config, for exmaple: true t TRUE T True 1
 
 EOF
 exit
@@ -58,7 +41,7 @@ exit
 # -----------------------------------------------------------------------------------------------------------------
 # Initialization:
 # -----------------------------------------------------------------------------------------------------------------
-while getopts h:a:d:u:k:p:v:m:e:n:s:r: FLAG; do
+while getopts h:a:d:u:k:p:m:e:n:s:r: FLAG; do
   case $FLAG in
     h ) usage ;;
     a ) APP_NAME=$OPTARG ;;
@@ -66,7 +49,6 @@ while getopts h:a:d:u:k:p:v:m:e:n:s:r: FLAG; do
     u ) USERNAME=$OPTARG ;;
     k ) SECRET_KEY=$OPTARG ;;
     p ) MASTER_PASSWORD=$OPTARG ;;
-    v ) VAULT=$OPTARG ;;
     m ) METHOD=$OPTARG ;;
     e ) ENVIRONMENT=$OPTARG ;;
     n ) NAMESPACE=$OPTARG ;;
@@ -115,8 +97,12 @@ if [ -z "${ENVIRONMENT}" ]; then
   usage
 fi
 
+VAULT=$(cat vaults.json)
+
+echo $VAULT
+
 if [ -z "${VAULT}" ]; then
-  echo -e \\n"Missing parameters - vault"\\n
+  echo -e \\n"Missing vaults.json in your project folder"\\n
   usage
 fi
 
