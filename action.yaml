@@ -60,6 +60,7 @@ runs:
     - name: Build/Push image
       shell: bash
       run: |
+        cd ${{inputs.WORKING_DIRECTORY}}
         make cd
 
     - name: Watch new rollout (trigger by image change in Openshift)
