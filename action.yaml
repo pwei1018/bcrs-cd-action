@@ -41,16 +41,6 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Build image
-      shell: bash
-      working-directory: ${{inputs.WORKING_DIRECTORY}}
-      run: |
-        BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"`
-        VCS_REF=`git rev-parse --short HEAD`
-        docker build . --file Dockerfile --tag image \
-          --build-arg VCS_REF=$VCS_REF \
-          --build-arg BUILD_DATE=$BUILD_DATE
-
     - name: Install tools (1password)
       shell: bash
       run: |
@@ -58,28 +48,19 @@ runs:
         oc version
         op --version
 
-    - name: Login Openshift
-      shell: bash
-      run: |
-        oc login ${{inputs.OPENSHIFT_LOGIN_REGISTRY}} --token=${{inputs.OPENSHIFT_SA_TOKEN}}
-
     - name: Set Deployment Environement Variables
       shell: bash
       run: |
+        oc login ${{inputs.OPENSHIFT_LOGIN_REGISTRY}} --token=${{inputs.OPENSHIFT_SA_TOKEN}}
         echo "Update Envs"
         ls -l
         vaults=`cat ./${{inputs.WORKING_DIRECTORY}}/devops/vaults.json`
         ${{ github.action_path }}/scripts/1pass.sh ${{inputs.OP_PARAMETERS}} -s "${{inputs.SKIP_OP}}" -m "secret" -e "${TAG_NAME}" -v "${vaults}" -a "${{inputs.APP_NAME}}-${TAG_NAME}" -n "${{inputs.OPENSHIFT_REPOSITORY}}-${TAG_NAME}" -r "${{inputs.DEPLOYMENT}}"
 
-    - name: Push image
+    - name: Build/Push image
       shell: bash
       run: |
-        echo "${{inputs.OPENSHIFT_SA_TOKEN}}" | docker login ${{inputs.OPENSHIFT_DOCKER_REGISTRY}} -u ${{inputs.OPENSHIFT_SA_NAME}} --password-stdin
-        IMAGE_ID=${{inputs.OPENSHIFT_DOCKER_REGISTRY}}/${{inputs.OPENSHIFT_REPOSITORY}}-tools/${{inputs.APP_NAME}}
-        docker tag image $IMAGE_ID:latest
-        docker push $IMAGE_ID:latest
-        docker image tag $IMAGE_ID:latest $IMAGE_ID:$TAG_NAME
-        docker push $IMAGE_ID:$TAG_NAME
+        make cd
 
     - name: Watch new rollout (trigger by image change in Openshift)
       shell: bash
