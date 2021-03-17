@@ -171,35 +171,39 @@ for env_name in "${envs[@]}"; do
 
   num=$((num+1))
   for vault_name in $(echo "${VAULT}" | jq -r '.[] | @base64' ); do
-    _jq() {
+    _vault_json() {
+      # decode vault json values
       echo ${vault_name} | base64 --decode | jq -r ${1}
     }
 
-    for application_name in $(echo "$(_jq '.application')" | jq -r '.[]| @base64' ); do
-      _jq_app() {
+    for application_name in $(echo "$(_vault_json '.application')" | jq -r '.[]| @base64' ); do
+      # decode application json values
+      _vault_json_app() {
         echo ${application_name} | base64 --decode
       }
-      app_name=$(echo ${application_name} | base64 --decode)
+
       # My setup uses a 1Password type of 'Password' and stores all records within a
       # single section. The label is the key, and the value is the value.
-      ev=`op get item --vault=$(_jq .vault) ${env_name}`
+      ev=`op get item --vault=$(_vault_json .vault) ${env_name}`
 
       touch t$num.txt
-      touch tkeycloak$num.txt
 
       # Convert to base64 for multi-line secrets.
       # The schema for the 1Password type uses t as the label, and v as the value.
-      for row in $(echo ${ev} | jq -r -c '.details.sections[] | select(.title=='\"$(_jq_app)\"') | .fields[] | @base64'); do
+      for row in $(echo ${ev} | jq -r -c '.details.sections[] | select(.title=='\"$(_vault_json_app)\"') | .fields[] | @base64'); do
           _envvars() {
               echo ${row} | base64 --decode | jq -r ${1}
           }
 
-          if [ ${vault_name} == "keycloak" ] && [ ${FRONTEND} = true ]; then
-            echo "${app_name}: $(_envvars '.t')" >> tkeycloak$num.txt
-          else
-            echo "${app_name}: $(_envvars '.t')" >> t$num.txt
+          echo "${_vault_json_app}: $(_envvars '.t')" >> t$num.txt
 
-            if [[ ${env_name} == ${ENVIRONMENT} ]]; then
+          if [[ ${env_name} == ${ENVIRONMENT} ]]; then
+            # Frontend applications will create a keycloak json file
+            if [ $(_vault_json '.vault') = "keycloak" ] && [ ${FRONTEND} = true ]; then
+              if [[ ${env_name} == ${ENVIRONMENT} ]]; then
+                echo "$(_envvars '.t')=$(_envvars '.v')"  >> tkeycloak.txt
+              fi
+            else
               case  ${METHOD}  in
                 secret)
                   echo "$(_envvars '.t')=$(_envvars '.v')" >> tsecret.txt
@@ -240,7 +244,7 @@ case  ${METHOD}  in
       fi
     fi
 
-    # check the duplicat key from vaults
+    # check the duplicat key(s) from vaults
     duplicate_key_check=$(sort tsecret.txt | grep -v -P '^\s*#' | sed -E 's/(.*)=.*/\1/' | uniq -d | xargs)
     if [[ ! -z ${duplicate_key_check} ]]; then
       warning_message="Duplicate key(s) found in 1password. ${duplicate_key_check}"
@@ -251,13 +255,13 @@ case  ${METHOD}  in
 
     if [[ $matched = true ]]; then
       if [[ ${FRONTEND} = false ]]; then
-        count_secrets=$(oc get secret ${APP_NAME}-secret -n ${NAMESPACE} --no-headers --ignore-not-found | wc -l)
-        if [[ $count_secrets > 0 ]]; then
+        COUNTER_SECRETS=$(oc get secret ${APP_NAME}-secret -n ${NAMESPACE} --no-headers --ignore-not-found | wc -l)
+        if [[ $COUNTER_SECRETS > 0 ]]; then
           # backup current secrets
-          commit_label=$(oc get secret ${APP_NAME}-secret -n ${NAMESPACE} --label-columns=git-commit --no-headers | awk '{ print $5 " " $6}')
-          if [[ ! -z "${commit_label}" ]]; then
+          COMMIT_LABEL=$(oc get secret ${APP_NAME}-secret -n ${NAMESPACE} --label-columns=git-commit --no-headers | awk '{ print $5 " " $6}')
+          if [[ ! -z "${COMMIT_LABEL}" ]]; then
             # delete duplicate secret
-            oc delete secret ${APP_NAME}-secret-${commit_label} -n ${NAMESPACE}
+            oc delete secret ${APP_NAME}-secret-${COMMIT_LABEL} -n ${NAMESPACE}
             # copy existing secret
             oc get secret ${APP_NAME}-secret -n ${NAMESPACE} -o yaml|sed "s/name: ${APP_NAME}-secret/name: ${APP_NAME}-secret-${commit_label}/g" | oc apply -f -
           fi
@@ -269,16 +273,16 @@ case  ${METHOD}  in
         oc create secret generic ${APP_NAME}-secret -n ${NAMESPACE}
         oc label secret ${APP_NAME}-secret -n ${NAMESPACE} app=${APP_NAME} git-commit=$(git rev-parse --short HEAD)
 
-        count_secrets=$(oc get secrets --selector=app=${APP_NAME} -n ${NAMESPACE} --no-headers --ignore-not-found | wc -l)
+        COUNTER_SECRETS=$(oc get secrets --selector=app=${APP_NAME} -n ${NAMESPACE} --no-headers --ignore-not-found | wc -l)
         # keep 3 backup secrets
-        if [[ $count_secrets > 4 ]]; then
+        if [[ $COUNTER_SECRETS > 4 ]]; then
           oldest_secret=($(oc get secrets -n ${NAMESPACE} --selector=app=${APP_NAME} --sort-by=.metadata.creationTimestamp --no-headers -o custom-columns=NAME:.metadata.name))
           oc delete secret ${oldest_secret} -n ${NAMESPACE}
         fi
 
-        secret_json=$(oc create secret generic ${APP_NAME}-secret -n ${NAMESPACE} --from-env-file=./tsecret.txt --dry-run=client -o json)
+        SECRET_JSON=$(oc create secret generic ${APP_NAME}-secret -n ${NAMESPACE} --from-env-file=./tsecret.txt --dry-run=client -o json)
         # Set secret key and value from 1password
-        oc get secret ${APP_NAME}-secret -n ${NAMESPACE} -o json | jq ". * $secret_json" | oc apply -f -
+        oc get secret ${APP_NAME}-secret -n ${NAMESPACE} -o json | jq ". * $SECRET_JSON" | oc apply -f -
 
         if [[ ${DEPLOYMENT} = true ]]; then
           # Set environment variable of deployment config
@@ -288,45 +292,30 @@ case  ${METHOD}  in
           done
           oc set env dc/${APP_NAME} -n ${NAMESPACE} --from=secret/${APP_NAME}-secret --containers=${APP_NAME}
         fi
-
-        rm t*.txt
       else
+        # frontend application
+        # create keycloak configmap
+        while read -r line; do declare  "$line"; done <tkeycloak.txt
+
         KEYCLOAK_JSON=$( jq -n \
                           --arg t1 "$KEYCLOAK_REALMNAME" \
                           --arg t2 "$KEYCLOAK_BASE_URL" \
                           --arg t3 "$UI_KEYCLOAK_RESOURCE_NAME" \
-                          '{realm: $t1, \
-                            auth-server-url: $t2, \
-                            ssl-required: "external", \
-                            resource: $t3, \
-                            public-client: true, \
-                            confidential-port: 0}' )
-        oc create configmap ${APP_NAME}-keycloak-config --from-literal=keycloak.json="$KEYCLOAK_JSON"
+                          "$KEYCLOAK_TEMPLATE" )
+        oc create configmap ${APP_NAME}-keycloak-config -n ${NAMESPACE} --from-literal=keycloak.json="$KEYCLOAK_JSON" -o json --dry-run=client | oc apply -f -
+
+        # create ui configuraiton configmap
+        UI_CONFIG_JSON=$(oc create configmap ${APP_NAME}-configuration -n ${NAMESPACE} --from-env-file=./tsecret.txt --dry-run=client -o json | jq '.data')
+        oc create configmap ${APP_NAME}-configuration -n ${NAMESPACE} --from-literal=configuration.json="$UI_CONFIG_JSON" -o json --dry-run=client | oc apply -f -
       fi
+
+      rm t*.txt
     else
       rm t*.txt
       exit 1
     fi
 
     ;;
-  compare)
-    # Compare txt file and write the result into github actions environment
-    result=$(comm -23 <(sort t1.txt) <(sort t2.txt))
-    result2=$(comm -23 <(sort t2.txt) <(sort t1.txt))
-    if [[ -z ${result} ]]; then
-      if [[ -z ${result2} ]]; then
-        echo ::echo "approval=true" >> $GITHUB_ENV
-        echo ::echo "message=The vault items between ${envs[0]} and ${envs[1]}  are matched." >> $GITHUB_ENV
-      else
-        echo ::echo "approval=false" >> $GITHUB_ENV
-        echo ::echo "message=The following vault items between ${envs[1]} and ${envs[0]} does not match. ${result2}" >> $GITHUB_ENV
-      fi
-    else
-      echo ::echo "approval=false" >> $GITHUB_ENV
-      echo ::echo "message=The following vault items between ${envs[0]} and ${envs[1]} does not match. ${result}"  >> $GITHUB_ENV
-    fi
 
-    rm t*.txt
-    ;;
 esac
 

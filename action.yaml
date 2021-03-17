@@ -45,7 +45,9 @@ runs:
       shell: bash
       working-directory: ${{inputs.WORKING_DIRECTORY}}
       run: |
-        docker build . --file Dockerfile --tag image
+        docker build . --file Dockerfile --tag image \
+          --build-arg VCS_REF=$(shell git rev-parse --short HEAD) \
+          --build-arg BUILD_DATE=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
     - name: Install tools (1password)
       shell: bash
@@ -74,8 +76,11 @@ runs:
         IMAGE_ID=${{inputs.OPENSHIFT_DOCKER_REGISTRY}}/${{inputs.OPENSHIFT_REPOSITORY}}-tools/${{inputs.APP_NAME}}
         docker tag image $IMAGE_ID:latest
         docker push $IMAGE_ID:latest
-        docker image tag $IMAGE_ID:latest $IMAGE_ID:$TAG_NAME
-        docker push $IMAGE_ID:$TAG_NAME
+
+    - name: Tag image
+      shell: bash
+      run: |
+        oc tag $IMAGE_ID:latest $IMAGE_ID:$TAG_NAME
 
     - name: Watch new rollout (trigger by image change in Openshift)
       shell: bash
