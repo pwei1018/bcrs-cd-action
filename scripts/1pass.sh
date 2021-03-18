@@ -298,7 +298,7 @@ case  ${METHOD}  in
 
         # create ui configuraiton configmap
         UI_CONFIG_JSON=$(oc create configmap ${APP_NAME}-configuration -n ${NAMESPACE} --from-env-file=./tsecret.txt --dry-run=client -o json | jq '.data')
-        oc create configmap ${APP_NAME}-configuration -n ${NAMESPACE} --from-literal=configuration.json="$UI_CONFIG_JSON" -o json --dry-run=client | oc apply -f -
+        oc create configmap ${APP_NAME}-ui-configuration -n ${NAMESPACE} --from-literal=configuration.json="$UI_CONFIG_JSON" -o json --dry-run=client | oc apply -f -
       fi
 
       rm t*.txt
