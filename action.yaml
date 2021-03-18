@@ -59,6 +59,11 @@ runs:
 
     - name: Build/Push image
       shell: bash
+      env:
+        OPENSHIFT_DOCKER_REGISTRY: ${{inputs.OPENSHIFT_DOCKER_REGISTRY}}
+        OPENSHIFT_REPOSITORY: ${{inputs.OPENSHIFT_REPOSITORY}}
+        OPENSHIFT_SA_NAME: ${{inputs.OPENSHIFT_SA_NAME}}
+        OPENSHIFT_SA_TOKEN: ${{inputs.OPENSHIFT_SA_TOKEN}}
       run: |
         cd ${{inputs.WORKING_DIRECTORY}}
         make cd
